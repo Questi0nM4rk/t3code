@@ -22,6 +22,9 @@ export class GitHubProfileError extends Schema.TaggedError<GitHubProfileError>()
   }
 }
 
+/** The only host a profile signs in to, as `GH_TOKEN` is kept to github.com. */
+const PROFILE_HOST = "github.com";
+
 type PinnedCredential = NonNullable<typeof GitHubRequestPolicy.PinnedGitHubCredential.Service>;
 
 const decodeInstallation = Schema.decodeEffect(
@@ -48,6 +51,13 @@ export const makeProfileCredential = (
     readonly repo: string;
     readonly profile: SourceControlProfileName | undefined;
   }) {
+    // A profile is saved for github.com: its token must never reach a host the remote names.
+    if (input.host.toLowerCase() !== PROFILE_HOST) {
+      if (input.profile === undefined) return null;
+      return yield* new GitHubProfileError({
+        detail: `GitHub profiles sign in to ${PROFILE_HOST} only, not ${input.host}.`,
+      });
+    }
     const saved = yield* sourceControlHost.settings
       .getWithSecrets(GitHubClient.definition.kind)
       .pipe(Effect.mapError(failed("Could not read the GitHub settings")));
