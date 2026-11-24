@@ -68,6 +68,13 @@ vp test run \
   packages/source-control-github/src/server/GitHubCredentials.test.ts
 vp run build:desktop
 vp env exec -- node apps/server/dist/bin.mjs --version
+vp env exec -- node apps/desktop/scripts/build-browser-secret.mjs
+
+# Electron keys what it encrypts in the keyring by the app's name. The released app is named
+# t3code, so this build takes the same name, or it cannot read the saved logins and connections.
+tag=$(git describe --tags --abbrev=0)
+mkdir desktop-app
+printf '{"name":"t3code","version":"%s","main":"../apps/desktop/dist-electron/boot.cjs"}\n' "${tag#v}" >desktop-app/package.json
 
 ln -s -- "$target" "$candidate/.current-link"
 mv -Tf -- "$candidate/.current-link" "$state/current"
