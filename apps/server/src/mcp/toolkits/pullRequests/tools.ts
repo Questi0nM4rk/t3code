@@ -20,6 +20,7 @@ import {
   ThreadPullRequestLinkSource,
   TrimmedNonEmptyString,
   ThreadId,
+  SourceControlProfileName,
 } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
 import * as McpSchema from "effect/ai/McpSchema";
@@ -660,6 +661,10 @@ const CreatePullRequestTool = Tool.make("pull_request_create", {
     body: Schema.String,
     base: Schema.optional(TrimmedNonEmptyString),
     draft: Schema.optional(Schema.Boolean),
+    credential: Schema.optional(SourceControlProfileName).annotate({
+      description:
+        "Profile to open it as, saved with request_secret `profile`. Omit for the default chosen in Settings, else the signed-in account.",
+    }),
   }),
   success: CreatePullRequestResult,
   failure: PullRequestToolError,

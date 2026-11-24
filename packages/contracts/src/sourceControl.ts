@@ -9,6 +9,15 @@ export const SourceControlProviderKind = TrimmedNonEmptyString.check(
 ).pipe(Schema.brand("SourceControlProviderKind"));
 export type SourceControlProviderKind = typeof SourceControlProviderKind.Type;
 
+/**
+ * The name of a source control profile: an account a change request can be opened as. Lower case,
+ * as settings keep secret map keys.
+ */
+export const SourceControlProfileName = TrimmedNonEmptyString.check(
+  Schema.isPattern(/^[a-z0-9._-]{1,64}$/u),
+);
+export type SourceControlProfileName = typeof SourceControlProfileName.Type;
+
 export const SourceControlProviderInfo = Schema.Struct({
   kind: SourceControlProviderKind,
   name: TrimmedNonEmptyString,

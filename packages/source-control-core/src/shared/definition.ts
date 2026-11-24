@@ -4,6 +4,7 @@ import {
   type RepositoryIdentity,
   secretSetting,
   SettingsSecretValue,
+  SourceControlProfileName,
   SourceControlProviderKind,
   type SourceControlProviderInfo,
   TrimmedNonEmptyString,
@@ -211,6 +212,11 @@ export interface SourceControlHostCredentials {
   readonly newTokenUrl: (host: string) => string;
   /** Signing in through the forge's own app instead of a token or CLI login. */
   readonly appSignIn?: SourceControlAppSignIn;
+  /**
+   * The driver opens a change request as a saved profile. Its `settings` then include
+   * `profileSettingsFields`, and clients show the profiles and the default to choose.
+   */
+  readonly profiles?: true;
 }
 
 /**
@@ -259,6 +265,24 @@ export const hostCredentialSettingsFields = {
 
 export const HostCredentialSettings = Schema.Struct(hostCredentialSettingsFields);
 export type HostCredentialSettings = typeof HostCredentialSettings.Type;
+
+/** The accounts a host with `credentials.profiles` opens change requests as, saved by agents. */
+export const profileSettingsFields = {
+  /** Each profile's token, or what its driver mints one from; kept in the secret store. */
+  profiles: Schema.Record(SourceControlProfileName, SettingsSecretValue).pipe(
+    Schema.withDecodingDefault(Effect.succeed({})),
+    secretSetting,
+    Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+  ),
+  /** The profile a change request opens as when its call names none; null for the CLI login. */
+  pullRequestProfile: Schema.NullOr(SourceControlProfileName).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+    Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+  ),
+};
+
+export const ProfileSettings = Schema.Struct(profileSettingsFields);
+export type ProfileSettings = typeof ProfileSettings.Type;
 
 /**
  * What the server and every client know about a forge. It is plain data and pure functions so

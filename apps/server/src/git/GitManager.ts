@@ -38,6 +38,7 @@ import {
   ModelSelection,
   type OrchestrationV2TurnItem,
   type ProjectId,
+  type SourceControlProfileName,
   SourceControlProviderError,
   type SourceControlWritingStyleSettings,
   type ThreadId,
@@ -195,6 +196,8 @@ export class GitManager extends Context.Service<
       readonly body: string;
       readonly baseBranch?: string | undefined;
       readonly draft?: boolean | undefined;
+      /** The saved profile to open it as; without it, the host's default profile, if any. */
+      readonly profile?: SourceControlProfileName | undefined;
     }) => Effect.Effect<GitCreatePullRequestResult, GitManagerServiceError>;
     readonly subscribePullRequestStateChanges: Effect.Effect<
       Stream.Stream<ThreadPullRequestKey>,
@@ -2471,9 +2474,18 @@ export const make = Effect.gen(function* () {
       readonly baseRef: string;
       readonly headBranch: string;
     }) => Effect.Effect<{ readonly title: string; readonly body: string }, E>,
+    profile?: SourceControlProfileName,
   ) {
     const provider = yield* sourceControlProvider(cwd);
-    const terms = sourceControlDefinitions.get(provider.kind).changeRequest;
+    const definition = sourceControlDefinitions.get(provider.kind);
+    const terms = definition.changeRequest;
+    if (profile !== undefined && definition.credentials?.profiles !== true) {
+      return yield* new GitManagerError({
+        operation: "runPrStep",
+        cwd,
+        detail: `${definition.label} has no profiles to open ${terms.shortLabelWithArticle} as. Leave out the profile.`,
+      });
+    }
     const details = yield* gitCore.statusDetails(cwd);
     const branch = details.branch ?? fallbackBranch;
     if (!branch) {
@@ -2563,6 +2575,7 @@ export const make = Effect.gen(function* () {
           : {}),
         title: generated.title,
         bodyFile,
+        ...(profile === undefined ? {} : { profile }),
       })
       .pipe(Effect.ensuring(fileSystem.remove(bodyFile).pipe(Effect.ignore)));
 
@@ -2653,6 +2666,7 @@ export const make = Effect.gen(function* () {
       undefined,
       input.baseBranch,
       () => Effect.succeed({ title: input.title, body: input.body }),
+      input.profile,
     );
     // The thread's branch PR comes from status, which may hold the lookup from before.
     if (result.status === "created") yield* invalidateStatus(input.cwd);

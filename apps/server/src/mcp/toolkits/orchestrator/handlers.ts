@@ -1,12 +1,15 @@
 import { OrchestratorMcpFailure } from "@t3tools/contracts";
 import { OrchestratorToolkit } from "./tools.ts";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 
 import * as PeerForwarding from "../../../peer/PeerForwarding.ts";
 import * as PeerLinkRequests from "../../../peer/PeerLinkRequests.ts";
 import * as PeerLinks from "../../../peer/PeerLinks.ts";
 import * as RemoteDelegation from "../../../peer/RemoteDelegation.ts";
-import { readCaller } from "../../threadAccess.ts";
+import * as SecretRequests from "../../../secrets/SecretRequests.ts";
+import { saveSourceControlProfile } from "../../../sourceControl/sourceControlProfiles.ts";
+import { loadCaller, readCaller } from "../../threadAccess.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
 import * as OrchestratorMcpService from "../../OrchestratorMcpService.ts";
@@ -137,11 +140,64 @@ const handlers = {
       return yield* service.deleteScheduledTask(scope, input);
     }),
   ),
-  request_secret: McpToolAccess.actsAsCaller((input) =>
+  request_secret: McpToolAccess.actsAsCaller(({ profile, sourceControl, githubAppId, ...input }) =>
     Effect.gen(function* () {
       const scope = yield* McpInvocationContext.McpInvocationContext;
       const service = yield* OrchestratorMcpService.OrchestratorMcpService;
-      return yield* service.requestSecret(scope, input);
+      if (profile === undefined) {
+        if (sourceControl !== undefined || githubAppId !== undefined) {
+          return yield* new OrchestratorMcpFailure({
+            code: "invalid_request",
+            message: "`sourceControl` and `githubAppId` describe a `profile`. Pass `profile` too.",
+          });
+        }
+        return yield* service.requestSecret(scope, input);
+      }
+      if (sourceControl === undefined) {
+        return yield* new OrchestratorMcpFailure({
+          code: "invalid_request",
+          message: "A `profile` needs its host kind in `sourceControl`, as `github`.",
+        });
+      }
+      const failed = (cause: { readonly message: string }) =>
+        new OrchestratorMcpFailure({ code: "orchestration_error", message: cause.message });
+      if (input.delivery === "file") {
+        return yield* new OrchestratorMcpFailure({
+          code: "invalid_request",
+          message: 'A `profile` is kept inside T3. Leave out `delivery: "file"`.',
+        });
+      }
+      // A pasted token needs no card; a card answer arrives as a one-use ref this save consumes.
+      let token = input.value;
+      if (token === undefined) {
+        const answered = yield* service.requestSecret(scope, input);
+        if (!("secretRef" in answered)) return answered;
+        const { caller: thread } = yield* loadCaller();
+        if (thread === undefined) {
+          return yield* new OrchestratorMcpFailure({
+            code: "invalid_request",
+            message: "Saving a profile needs the calling thread.",
+          });
+        }
+        // Looked up, not declared, so the toolkit's dependencies stay upstream's.
+        const secretRequests = yield* Effect.serviceOption(SecretRequests.SecretRequests);
+        if (Option.isNone(secretRequests)) {
+          return yield* new OrchestratorMcpFailure({
+            code: "orchestration_error",
+            message: "T3's secret requests are not available to this tool.",
+          });
+        }
+        token = yield* secretRequests.value
+          .consume({ ref: answered.secretRef, projectId: thread.projectId })
+          .pipe(Effect.mapError(failed));
+      }
+      yield* saveSourceControlProfile({
+        kind: sourceControl,
+        name: profile,
+        secret: token,
+        githubAppId,
+      }).pipe(Effect.mapError(failed));
+      return { status: "saved" as const, profile };
     }),
   ),
   create_threads: McpToolAccess.actsAsCaller((input) =>

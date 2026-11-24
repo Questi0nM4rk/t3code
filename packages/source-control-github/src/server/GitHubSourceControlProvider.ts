@@ -29,6 +29,7 @@ import { GH_PROCESS_CONCURRENCY } from "./GitHubCredentials.ts";
 import * as GitHubAppSignIn from "./GitHubAppSignIn.ts";
 import * as GitHubRest from "./GitHubRest.ts";
 import * as GitHubRequestPolicy from "./GitHubRequestPolicy.ts";
+import { makeProfileCredential } from "./gitHubProfileCredential.ts";
 import * as GitHubChangeRequestTemplate from "./gitHubChangeRequestTemplate.ts";
 import * as GitHubGraphQlClient from "./gitHubGraphQlClient.ts";
 import {
@@ -548,6 +549,7 @@ export const make = Effect.gen(function* () {
   const environment = yield* HostProcess.Environment;
   const git = sourceControlHost.git;
   const fileSystem = yield* FileSystem.FileSystem;
+  const profileCredential = makeProfileCredential(api, sourceControlHost);
 
   const gitRead = (cwd: string, args: ReadonlyArray<string>) =>
     process.run({
@@ -1111,7 +1113,14 @@ export const make = Effect.gen(function* () {
               failure("The pull request description could not be read.", cause),
             ),
           );
-        yield* rest({
+        // A profile signs only this request; the lookups around it read as the usual credential.
+        const asProfile = yield* profileCredential({
+          host: locator.host,
+          owner: locator.owner,
+          repo: locator.name,
+          profile: input.profile,
+        }).pipe(Effect.mapError((cause) => failure(cause.message, cause)));
+        const open = rest({
           host: locator.host,
           operation: "createPullRequest",
           method: "POST",
@@ -1126,6 +1135,9 @@ export const make = Effect.gen(function* () {
             maintainer_can_modify: true,
           },
         });
+        yield* asProfile === null
+          ? open
+          : open.pipe(Effect.provideService(GitHubRequestPolicy.PinnedGitHubCredential, asProfile));
       },
       (effect, input) =>
         effect.pipe(

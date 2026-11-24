@@ -1,4 +1,10 @@
-import { makeProviderSettingsSchema, SourceControlProviderKind } from "@t3tools/contracts";
+import {
+  makeProviderSettingsSchema,
+  SourceControlProfileName,
+  SourceControlProviderKind,
+} from "@t3tools/contracts";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import {
   buildCommitUrl,
   changeRequestUrlBelow,
@@ -9,6 +15,7 @@ import {
   parseChangeRequestPath,
   parseIssuePath,
   parseCommitPath,
+  profileSettingsFields,
   repositoryUrlFromPagePath,
   projectChangeRequestHost,
   remoteWebOrigin,
@@ -55,7 +62,15 @@ export const APP_SIGN_IN: SourceControlAppSignIn = {
   revokeUrl: "https://github.com/settings/apps/authorizations",
 };
 
-export const settings = makeProviderSettingsSchema(hostCredentialSettingsFields);
+export const settings = makeProviderSettingsSchema({
+  ...hostCredentialSettingsFields,
+  ...profileSettingsFields,
+  /** The App ID of each profile whose secret is a GitHub App's private key, not a token. */
+  profileAppIds: Schema.Record(SourceControlProfileName, Schema.Int).pipe(
+    Schema.withDecodingDefault(Effect.succeed({})),
+    Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+  ),
+});
 export type GitHubSettings = typeof settings.Type;
 
 export const definition = defineSourceControl({
@@ -72,6 +87,7 @@ export const definition = defineSourceControl({
     tokenAccess: "read and write access to pull requests and contents",
     newTokenUrl: (host) => `https://${host}/settings/personal-access-tokens/new`,
     appSignIn: APP_SIGN_IN,
+    profiles: true,
   },
   changeRequest: {
     shortLabel: "PR",

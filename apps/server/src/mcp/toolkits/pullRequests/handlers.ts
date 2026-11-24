@@ -1025,6 +1025,7 @@ const make = Effect.gen(function* () {
             body: input.body,
             baseBranch: input.base,
             draft: input.draft,
+            profile: input.credential,
           })
           .pipe(Effect.mapError(forgeFailure));
         if (created.url === undefined) {

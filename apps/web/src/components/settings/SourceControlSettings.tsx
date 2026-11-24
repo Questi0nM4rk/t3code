@@ -39,6 +39,7 @@ import { GitIcon, JujutsuIcon, type Icon } from "../Icons";
 import { IssueTrackerSettings } from "./IssueTrackerSettings";
 import { SourceControlHostSettings } from "./SourceControlHostSettings";
 import { SourceControlAccountSettings } from "./SourceControlAccountSettings";
+import { ChangeRequestProfileSettings } from "./ChangeRequestProfileSettings";
 import { SourceControlAppSignInSettings } from "./SourceControlAppSignInSettings";
 import { SourceControlTokenSettings } from "./SourceControlTokenSettings";
 import { RedactedSensitiveText } from "./RedactedSensitiveText";
@@ -542,6 +543,13 @@ export function SourceControlSettingsPanel() {
                 credentials={credentials}
                 auth={item.auth}
                 onSaved={handleScan}
+              />
+            ) : null}
+            {credentials.profiles ? (
+              <ChangeRequestProfileSettings
+                key={`profile-${environmentId}`}
+                environmentId={environmentId}
+                definition={definition}
               />
             ) : null}
           </div>

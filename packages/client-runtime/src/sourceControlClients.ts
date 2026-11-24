@@ -1,6 +1,7 @@
 import { builtInSourceControlDefinitions } from "@t3tools/source-control-definitions/registry";
 import {
   HostCredentialSettings,
+  ProfileSettings,
   readSourceControlHostSettings,
   type SourceControlAppSignIn,
   type SourceControlDefinition,
@@ -24,6 +25,21 @@ export {
 } from "@t3tools/source-control-core/shared/definition";
 
 export const sourceControlClients = builtInSourceControlDefinitions;
+
+/**
+ * The profile names of a host whose definition has `credentials.profiles` (their secrets stay on
+ * the server), and the one change requests open as by default.
+ */
+export function readProfileSettings(
+  settings: Pick<ServerSettings, "sourceControlHosts">,
+  kind: string,
+) {
+  const read = readSourceControlHostSettings(ProfileSettings, settings.sourceControlHosts[kind]);
+  return {
+    names: Object.keys(read.profiles).sort(),
+    pullRequestProfile: read.pullRequestProfile,
+  };
+}
 
 /** The saved per-hostname accounts and tokens of a host whose definition has `credentials`. */
 export function readHostCredentialSettings(

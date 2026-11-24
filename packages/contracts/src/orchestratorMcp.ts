@@ -27,6 +27,7 @@ import {
 } from "./scheduledTask.ts";
 import { ProviderInteractionMode, ProviderRequestKind, RuntimeMode } from "./providerPolicy.ts";
 import { PullRequestState } from "./pullRequest.ts";
+import { SourceControlProfileName, SourceControlProviderKind } from "./sourceControl.ts";
 import {
   ThreadLinkedPullRequest,
   ThreadPullRequestKey,
@@ -824,6 +825,17 @@ export const OrchestratorMcpRequestSecretInput = Schema.Struct({
   value: Schema.optional(PastedSecretValue).annotate({
     description: "Pasted in this thread; no card.",
   }),
+  profile: Schema.optional(SourceControlProfileName).annotate({
+    description:
+      "Keep the value for good as this source control profile, a token to open PRs as; pull_request_create picks it with `credential`. Same name replaces it. Needs `sourceControl`.",
+  }),
+  sourceControl: Schema.optional(SourceControlProviderKind).annotate({
+    description: "The host kind of a `profile`, as `github`.",
+  }),
+  githubAppId: Schema.optional(Schema.Int.check(Schema.isGreaterThan(0))).annotate({
+    description:
+      "With a `github` profile: the value is this GitHub App's private key (PEM or base64 PEM), and each PR gets a fresh App token.",
+  }),
   /** Default 10 minutes. */
   timeoutMs: Schema.optional(
     Schema.Int.check(Schema.isBetween({ minimum: 1_000, maximum: 60 * 60 * 1_000 })),
@@ -835,6 +847,12 @@ export const OrchestratorMcpRequestSecretInput = Schema.Struct({
 export type OrchestratorMcpRequestSecretInput = typeof OrchestratorMcpRequestSecretInput.Type;
 
 export const OrchestratorMcpRequestSecretResult = Schema.Union([
+  Schema.Struct({
+    status: Schema.Literal("saved"),
+    profile: SourceControlProfileName.annotate({
+      description: "Saved for good. Pass it as pull_request_create `credential`.",
+    }),
+  }),
   Schema.Struct({
     status: Schema.Literal("saved"),
     secretRef: SecretRef.annotate({

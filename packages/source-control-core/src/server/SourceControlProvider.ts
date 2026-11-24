@@ -2,6 +2,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import type * as Option from "effect/Option";
 import type {
+  SourceControlProfileName,
   RepositoryIdentity,
   ChangeRequest,
   ChangeRequestState,
@@ -193,6 +194,8 @@ export class SourceControlProvider extends Context.Service<
       readonly headSelector: string;
       readonly title: string;
       readonly bodyFile: string;
+      /** Open it as this saved profile. Without it, a driver with profiles uses the default one. */
+      readonly profile?: SourceControlProfileName;
     }) => Effect.Effect<void, SourceControlProviderError>;
     readonly getRepositoryCloneUrls: (input: {
       readonly cwd: string;
