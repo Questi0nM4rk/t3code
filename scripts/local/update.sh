@@ -91,10 +91,18 @@ Exec=$repo/scripts/local/desktop.sh %U
 TryExec=$repo/scripts/local/desktop.sh
 Terminal=false
 Type=Application
-Icon=t3code
+Icon=com.t3tools.T3Code
 StartupWMClass=com.t3tools.T3Code
 Categories=Development;
 MimeType=x-scheme-handler/t3code;
 EOF
+
+# A bar looks a window's icon up by its class. The entry the app writes for its class carries no
+# icon when it runs unpackaged, so the theme holds one under the class name.
+icons="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor"
+install -Dm644 -- assets/prod/black-universal-1024.png "$icons/512x512/apps/com.t3tools.T3Code.png"
+if [[ -f $icons/icon-theme.cache ]]; then
+  gtk-update-icon-cache -f -t -q -- "$icons"
+fi
 
 printf 'Built %s. Start it from the launcher or with %s/scripts/local/desktop.sh.\n' "$(git -C "$candidate" describe --tags --always)" "$repo"
