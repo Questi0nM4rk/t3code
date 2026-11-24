@@ -15,4 +15,7 @@ if [[ $(stat -c '%u %a' -- "${electron%/*}/chrome-sandbox") != "0 4755" ]]; then
   sandbox=(--no-sandbox)
 fi
 unset ELECTRON_RUN_AS_NODE
+# The app writes a desktop entry for t3code:// links; it must start this script, not bare Electron.
+T3CODE_DESKTOP_LAUNCHER_PATH=$(readlink -f -- "${BASH_SOURCE[0]}")
+export T3CODE_DESKTOP_LAUNCHER_PATH
 exec "$electron" "${sandbox[@]}" "$app/desktop-app" "$@"
