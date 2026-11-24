@@ -67,7 +67,8 @@ export const makeProfileCredential = (
     );
     const name = input.profile ?? github.pullRequestProfile;
     if (name === null) return null;
-    const value = github.profiles[name];
+    // Own keys only: a name such as `constructor` must not find what a plain object inherits.
+    const value = Object.hasOwn(github.profiles, name) ? github.profiles[name] : undefined;
     if (value === undefined) {
       return yield* new GitHubProfileError({
         detail: `No GitHub profile "${name}". Saved: ${Object.keys(github.profiles).join(", ") || "none"}.`,
@@ -76,16 +77,21 @@ export const makeProfileCredential = (
     const secret = yield* requireSettingsSecretLiteral(value, saved.secretProviders).pipe(
       Effect.mapError(failed(`Could not read GitHub profile "${name}"`)),
     );
-    const appId = github.profileAppIds[name];
+    const appId = Object.hasOwn(github.profileAppIds, name)
+      ? github.profileAppIds[name]
+      : undefined;
     const token =
       appId === undefined
         ? secret
         : yield* mintAppToken({ ...input, name, appId, privateKey: secret });
     return {
-      host: input.host,
-      token: Redacted.make(token),
-      credentialFingerprint: `${input.host}:profile:${name}`,
-    } satisfies PinnedCredential;
+      name,
+      credential: {
+        host: input.host,
+        token: Redacted.make(token),
+        credentialFingerprint: `${input.host}:profile:${name}`,
+      } satisfies PinnedCredential,
+    };
   });
 
   /** A fresh installation token of the App, limited to `repo`, asked for with the App's JWT. */
@@ -129,10 +135,13 @@ export const makeProfileCredential = (
       .pipe(
         asApp,
         Effect.flatMap((response) => decodeInstallation(response.body)),
-        Effect.mapError(
+        // Only a 404 means "not installed"; a refused JWT means the key or App ID is wrong.
+        Effect.mapError((cause) =>
           failed(
-            `GitHub App profile "${input.name}" is not installed on ${input.owner}/${input.repo}`,
-          ),
+            cause._tag === "GitHubApiNotFoundError"
+              ? `GitHub App profile "${input.name}" is not installed on ${input.owner}/${input.repo}`
+              : `GitHub refused the App key or App ID of profile "${input.name}"`,
+          )(cause),
         ),
       );
     const minted = yield* api

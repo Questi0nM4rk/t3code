@@ -1137,7 +1137,19 @@ export const make = Effect.gen(function* () {
         });
         yield* asProfile === null
           ? open
-          : open.pipe(Effect.provideService(GitHubRequestPolicy.PinnedGitHubCredential, asProfile));
+          : open.pipe(
+              Effect.provideService(
+                GitHubRequestPolicy.PinnedGitHubCredential,
+                asProfile.credential,
+              ),
+              // `gh auth login` cannot repair a profile, so name the profile GitHub refused.
+              Effect.mapError((cause) =>
+                failure(
+                  `Opening it as profile "${asProfile.name}" failed: ${cause.message}`,
+                  cause,
+                ),
+              ),
+            );
       },
       (effect, input) =>
         effect.pipe(

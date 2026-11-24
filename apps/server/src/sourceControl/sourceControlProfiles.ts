@@ -1,3 +1,6 @@
+// @effect-diagnostics nodeBuiltinImport:off - A GitHub App key is checked with node's crypto before it is saved.
+import * as NodeCrypto from "node:crypto";
+
 import type { SourceControlProfileName, SourceControlProviderKind } from "@t3tools/contracts";
 import * as SourceControlHost from "@t3tools/source-control-core/server/SourceControlHost";
 import {
@@ -8,8 +11,11 @@ import * as GitHub from "@t3tools/source-control-github/shared/definition";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import * as Semaphore from "effect/Semaphore";
 
 import { sourceControlDefinitions } from "./sourceControlDefinitions.ts";
+
+const saveLock = Semaphore.makeUnsafe(1);
 
 export class SourceControlProfileError extends Schema.TaggedError<SourceControlProfileError>()(
   "SourceControlProfileError",
@@ -47,19 +53,32 @@ export const saveSourceControlProfile = Effect.fn("SourceControlProfiles.save")(
   // Looked up, not required, so the tool that saves keeps upstream's declared dependencies.
   const host = yield* Effect.serviceOption(SourceControlHost.SourceControlHost);
   if (Option.isNone(host)) return yield* refuse("T3's source control settings are not available.");
+  // The card's password field drops line breaks, so a pasted PEM fails here, not at the first PR.
+  if (input.githubAppId !== undefined) {
+    const pem = value.startsWith("-----BEGIN")
+      ? value
+      : Buffer.from(value, "base64").toString("utf8");
+    yield* Effect.try({
+      try: () => NodeCrypto.createPrivateKey(pem),
+      catch: () =>
+        refuse(
+          `The value for GitHub App profile "${input.name}" is not a private key. Paste the key as base64 on one line.`,
+        ),
+    });
+  }
   const failed = (cause: { readonly message: string }) =>
     refuse(`Could not save profile "${input.name}": ${cause.message}`);
+  const settings = host.value.settings;
 
-  const current = (yield* host.value.settings.get.pipe(Effect.mapError(failed))).sourceControlHosts[
-    input.kind
-  ];
-  const { profiles } = readSourceControlHostSettings(ProfileSettings, current);
-  const { [input.name]: _replaced, ...appIds } = isGitHub
-    ? readSourceControlHostSettings(GitHub.settings, current).profileAppIds
-    : {};
   // The whole map goes back, as the Settings page sends it; the other secrets keep their values.
-  yield* host.value.settings
-    .update({
+  // One save at a time, so two saves never both write a map read before the other's write.
+  yield* Effect.gen(function* () {
+    const current = (yield* settings.get).sourceControlHosts[input.kind];
+    const { profiles } = readSourceControlHostSettings(ProfileSettings, current);
+    const { [input.name]: _replaced, ...appIds } = isGitHub
+      ? readSourceControlHostSettings(GitHub.settings, current).profileAppIds
+      : {};
+    yield* settings.update({
       sourceControlHosts: {
         [input.kind]: {
           profiles: { ...profiles, [input.name]: value },
@@ -73,6 +92,6 @@ export const saveSourceControlProfile = Effect.fn("SourceControlProfiles.save")(
             : {}),
         },
       },
-    })
-    .pipe(Effect.mapError(failed));
+    });
+  }).pipe(Effect.mapError(failed), Semaphore.withPermit(saveLock));
 });
