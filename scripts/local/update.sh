@@ -69,6 +69,7 @@ vp test run \
 vp run build:desktop
 vp env exec -- node apps/server/dist/bin.mjs --version
 vp env exec -- node apps/desktop/scripts/build-browser-secret.mjs
+vp env exec -- node apps/desktop/scripts/ensure-electron-runtime.mjs
 
 # Electron keys what it encrypts in the keyring by the app's name. The released app is named
 # t3code, so this build takes the same name, or it cannot read the saved logins and connections.
