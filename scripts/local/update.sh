@@ -77,8 +77,21 @@ tag=$(git describe --tags --abbrev=0)
 mkdir desktop-app
 printf '{"name":"t3code","version":"%s","main":"../apps/desktop/dist-electron/boot.cjs"}\n' "${tag#v}" >desktop-app/package.json
 
+previous=
+if [[ -L $state/current ]]; then
+  previous=$(readlink -- "$state/current")
+fi
 ln -s -- "$target" "$candidate/.current-link"
 mv -Tf -- "$candidate/.current-link" "$state/current"
+
+# A build takes about 5 GB. The new one and the one it replaced stay, so the last good build
+# remains for a manual switch back; older ones go.
+for build in "$state"/releases/build.*; do
+  if [[ releases/${build##*/} != "$target" && releases/${build##*/} != "$previous" ]]; then
+    rm -rf -- "$build"
+    printf 'Removed old build %s.\n' "${build##*/}"
+  fi
+done
 
 # The launcher menu runs this build in place of the installed app.
 entry="${XDG_DATA_HOME:-$HOME/.local/share}/applications/t3code.desktop"
