@@ -21,10 +21,12 @@ holds the steps (set up, change, update, take a release); read it first.
 - Commit before `update.sh`: it builds the committed branch and refuses a
   dirty tree.
 - Put local-only additions in new files. An edit to an upstream file
-  (`AGENTS.md`, `CLAUDE.md`, shared source) conflicts on every tag merge.
-- `update.sh` is the proof that a change works in the app. Its run takes
-  minutes and about 5 GB per build. It keeps the new build, the one it
-  replaced, and any build a running app still uses.
+  (`AGENTS.md`, `CLAUDE.md`, shared source) conflicts whenever a tag changes
+  the same lines; a new file never does.
+- `update.sh` proves the branch tests and builds; it never starts the app.
+  Prove UI behaviour with test-t3-app. A run takes minutes and about 5 GB per
+  build. It keeps the new build, the one it replaced, and any build a running
+  app still uses.
 
 ## Traps already hit
 

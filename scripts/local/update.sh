@@ -79,20 +79,10 @@ printf '{"name":"t3code","version":"%s","main":"../apps/desktop/dist-electron/bo
 
 previous=
 if [[ -L $state/current ]]; then
-  previous=$(readlink -- "$state/current")
+  previous=$(readlink -f -- "$state/current")
 fi
 ln -s -- "$target" "$candidate/.current-link"
 mv -Tf -- "$candidate/.current-link" "$state/current"
-
-# A build takes about 5 GB. The new one and the one it replaced stay, so the last good build
-# remains for a manual switch back; older ones go, unless a running app still uses one.
-for build in "$state"/releases/build.*; do
-  if [[ releases/${build##*/} != "$target" && releases/${build##*/} != "$previous" ]] &&
-    ! pgrep -f -- "$build/" >/dev/null; then
-    rm -rf -- "$build"
-    printf 'Removed old build %s.\n' "${build##*/}"
-  fi
-done
 
 # The launcher menu runs this build in place of the installed app.
 entry="${XDG_DATA_HOME:-$HOME/.local/share}/applications/t3code.desktop"
@@ -118,5 +108,16 @@ install -Dm644 -- assets/prod/black-universal-1024.png "$icons/512x512/apps/com.
 if [[ -f $icons/icon-theme.cache ]]; then
   gtk-update-icon-cache -f -t -q -- "$icons"
 fi
+
+# A build takes about 5 GB. The new one and the one it replaced stay, so the last good build
+# remains for a manual switch back; older ones go, unless a running app still uses one.
+built=$(readlink -f -- "$candidate")
+for build in "$state"/releases/build.*; do
+  build=$(readlink -f -- "$build")
+  if [[ $build != "$built" && $build != "$previous" ]] && ! pgrep -f -- "$build/" >/dev/null; then
+    rm -rf -- "$build"
+    printf 'Removed old build %s.\n' "${build##*/}"
+  fi
+done
 
 printf 'Built %s. Start it from the launcher or with %s/scripts/local/desktop.sh.\n' "$(git -C "$candidate" describe --tags --always)" "$repo"
