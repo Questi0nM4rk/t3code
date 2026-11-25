@@ -16,7 +16,7 @@ if [[ $# -gt 1 || ${1:-} == -* ]] || { [[ $# -eq 1 ]] && ! git check-ref-format 
   exit 2
 fi
 
-for command in git vp flock; do
+for command in git vp flock pgrep; do
   if ! command -v "$command" >/dev/null; then
     printf 'Required command missing: %s\n' "$command" >&2
     exit 1
@@ -85,9 +85,10 @@ ln -s -- "$target" "$candidate/.current-link"
 mv -Tf -- "$candidate/.current-link" "$state/current"
 
 # A build takes about 5 GB. The new one and the one it replaced stay, so the last good build
-# remains for a manual switch back; older ones go.
+# remains for a manual switch back; older ones go, unless a running app still uses one.
 for build in "$state"/releases/build.*; do
-  if [[ releases/${build##*/} != "$target" && releases/${build##*/} != "$previous" ]]; then
+  if [[ releases/${build##*/} != "$target" && releases/${build##*/} != "$previous" ]] &&
+    ! pgrep -f -- "$build/" >/dev/null; then
     rm -rf -- "$build"
     printf 'Removed old build %s.\n' "${build##*/}"
   fi
